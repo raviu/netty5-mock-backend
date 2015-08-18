@@ -4,7 +4,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.DefaultFullHttpResponse;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderUtil;
@@ -33,9 +32,7 @@ public class MockServerThread extends Thread {
 
         while(true) {
             try {
-
                 elem = (DelayedElement) queue.take();
-
                 beginResponse(elem.getContext(), elem.getTrailer(), elem.getBuf(), elem.getRequest(), elem.getResponseContentType());
             } catch (InterruptedException e) {
                 e.printStackTrace();
@@ -45,7 +42,6 @@ public class MockServerThread extends Thread {
 
 
     public void delayEvent(ChannelHandlerContext ctx, LastHttpContent trailer, HttpRequest request, StringBuilder buf, int delay, String responseContentType, int id) {
-//        System.out.println("Adding: " + id);
         DelayedElement delayedElement = new DelayedElement(ctx, trailer, request, HardcodedResponse.BYTE_RESPONSE, System.currentTimeMillis(), delay, responseContentType);
         queue.add(delayedElement);
     }
@@ -58,18 +54,6 @@ public class MockServerThread extends Thread {
         FullHttpResponse response = new DefaultFullHttpResponse(HTTP_1_1, CONTINUE);
         ChannelFuture future = ctx.channel().write(response);
         future.addListener(ChannelFutureListener.CLOSE);
-    }
-
-
-    private static void appendDecoderResult(StringBuilder buf, HttpObject o) {
-        DecoderResult result = o.decoderResult();
-        if (result.isSuccess()) {
-            return;
-        }
-
-        buf.append(".. WITH DECODER FAILURE: ");
-        buf.append(result.cause());
-        buf.append("\r\n");
     }
 
     private void writeResponse(HttpObject currentObj, ChannelHandlerContext ctx, HttpMessage request, byte[] buf, String responseContentType) {
@@ -91,39 +75,13 @@ public class MockServerThread extends Thread {
             response.headers().set(CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
         }
 
-        // Encode the cookie.
-//        String cookieString = request.headers().get(COOKIE);
-//        if (cookieString != null) {
-//            Set<Cookie> cookies = CookieDecoder.decode(cookieString);
-//            if (!cookies.isEmpty()) {
-//                // Reset the cookies if necessary.
-//                for (Cookie cookie: cookies) {
-//                    response.headers().add(SET_COOKIE, ServerCookieEncoder.encode(cookie));
-//                }
-//            }
-//        } else {
-//            // Browser sent no cookie.  Add some.
-//            response.headers().add(SET_COOKIE, ServerCookieEncoder.encode("key1", "value1"));
-//            response.headers().add(SET_COOKIE, ServerCookieEncoder.encode("key2", "value2"));
-//        }
+        ChannelFuture future = ctx.channel().write(response);
 
+        if(!keepAlive) {
+            future.addListener(ChannelFutureListener.CLOSE);
+        }
 
-//        Random rand = new Random();
-//
-//        int randVal = rand.nextInt(5000 - 10 + 1) + 10;
-
-//        if(randVal > 2000) {
-            // ctx.channel().close(); do nothing and let it timeout
-//        } else {
-            // Write the response.
-            ChannelFuture future = ctx.channel().write(response);
-
-            if(!keepAlive) {
-                future.addListener(ChannelFutureListener.CLOSE);
-            }
-
-            ctx.channel().flush();
-//        }
+        ctx.channel().flush();
 
     }
 
